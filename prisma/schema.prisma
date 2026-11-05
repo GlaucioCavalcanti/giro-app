@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(uuid())
+  name         String
+  email        String        @unique
+  passwordHash String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  budgetMonths BudgetMonth[]
+  vehicles     Vehicle[]
+
+  @@map("users")
+}
+
+model Vehicle {
+  id                 String               @id @default(uuid())
+  userId             String
+  user               User                 @relation(fields: [userId], references: [id])
+  plate              String               @unique
+  brand              String
+  model              String
+  year               Int
+  monthlyInstallment Float                @default(0.0)
+  insuranceValue     Float                @default(0.0)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  taxes              VehicleTax[]
+  maintenances       VehicleMaintenance[]
+
+  @@map("vehicles")
+}
+
+model VehicleTax {
+  id                 String   @id @default(uuid())
+  vehicleId          String
+  vehicle            Vehicle  @relation(fields: [vehicleId], references: [id])
+  taxType            String   // IPVA, LICENSING, FIRE_BRIGADE, FINE
+  fiscalYear         Int
+  installmentNumber  Int
+  totalInstallments  Int      @default(1)
+  dueDate            DateTime
+  amount             Float
+  isPaid             Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("vehicle_taxes")
+}
+
+model VehicleMaintenance {
+  id          String   @id @default(uuid())
+  vehicleId   String
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id])
+  description String
+  cost        Float
+  kmAtService Float
+  serviceDate DateTime
+  createdAt   DateTime @default(now())
+
+  @@map("vehicle_maintenances")
+}
+
+model BudgetMonth {
+  id            String         @id @default(uuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id])
+  year          Int
+  month         Int            // 1 to 12
+  status        String         @default("OPEN") // OPEN, CLOSED
+  totalRevenue  Float          @default(0.0)
+  totalFuelCost Float          @default(0.0)
+  totalExpenses Float          @default(0.0)
+  netBalance    Float          @default(0.0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  dailyWorkLogs  DailyWorkLog[]
+  weeklyEarnings WeeklyEarning[]
+  expenses       Expense[]
+  budgetGoals    BudgetGoal[]
+
+  @@unique([userId, year, month])
+  @@index([userId, year])
+  @@map("budget_months")
+}
+
+model DailyWorkLog {
+  id             String       @id @default(uuid())
+  budgetMonthId  String
+  budgetMonth    BudgetMonth  @relation(fields: [budgetMonthId], references: [id])
+  workDate       DateTime     // YYYY-MM-DD
+  kmStart        Float
+  kmEnd          Float
+  totalKm        Float
+  grossEarning   Float        @default(0.0)
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  fuelEntries    FuelEntry[]
+
+  @@map("daily_work_logs")
+}
+
+model FuelEntry {
+  id             String        @id @default(uuid())
+  dailyWorkLogId String
+  dailyWorkLog   DailyWorkLog  @relation(fields: [dailyWorkLogId], references: [id], onDelete: Cascade)
+  fuelType       String        // GASOLINE, ETHANOL
+  liters         Float
+  pricePerLiter  Float
+  totalCost      Float
+  fueledAt       DateTime      @default(now())
+
+  @@map("fuel_entries")
+}
+
+model WeeklyEarning {
+  id            String      @id @default(uuid())
+  budgetMonthId String
+  budgetMonth   BudgetMonth @relation(fields: [budgetMonthId], references: [id])
+  weekNumber    Int         // 1 to 5
+  grossAmount   Float       @default(0.0)
+  fuelCost      Float       @default(0.0)
+  netAmount     Float       @default(0.0)
+  totalKm       Float       @default(0.0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([budgetMonthId, weekNumber])
+  @@map("weekly_earnings")
+}
+
+model Expense {
+  id             String      @id @default(uuid())
+  budgetMonthId  String
+  budgetMonth    BudgetMonth @relation(fields: [budgetMonthId], references: [id])
+  category       String      // HOUSING, VEHICLE, EDUCATION, FOOD, SUBSCRIPTION, FINANCIAL, OTHER
+  description    String
+  plannedAmount  Float       @default(0.0)
+  actualAmount   Float       @default(0.0)
+  isPaid         Boolean     @default(false)
+  isRecurring    Boolean     @default(false)
+  installment    String?     // Ex: "06/12", "01/21"
+  dueDay         Int?
+  paidAt         DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@map("expenses")
+}
+
+model BudgetGoal {
+  id             String      @id @default(uuid())
+  budgetMonthId  String
+  budgetMonth    BudgetMonth @relation(fields: [budgetMonthId], references: [id])
+  groupName      String
+  description    String?
+  targetAmount   Float
+  achievedAmount Float       @default(0.0)
+  priorityWeek   Int?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@map("budget_goals")
+}
